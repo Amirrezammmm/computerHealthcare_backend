@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\Computer;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
+use App\Imports\ComputersImport;
+use Maatwebsite\Excel\Facades\Excel;
+
 
 class ComputerController extends Controller
 {
@@ -103,4 +106,34 @@ class ComputerController extends Controller
             'message' => 'کیس مورد نظر بایگانی شد (Soft Delete).'
         ]);
     }
+    public function import(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // حداکثر ۱۰ مگابایت
+        ]);
+
+        try {
+            Excel::import(new ComputersImport, $request->file('file'));
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'عملیات با موفقیت انجام شد؛ سیستم‌ها در سامانه القارعه ثبت شدند! 🚀'
+            ], 200);
+
+        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
+            $failures = $e->failures();
+            return response()->json([
+                'status' => 'error',
+                'message' => 'ردیف‌هایی از اکسل ایراد ساختاری دارند.',
+                'errors' => $failures
+            ], 422);
+
+        } catch (\Throwable $th) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'شکست در واردات دیتا: ' . $th->getMessage()
+            ], 500);
+        }
+    }
+
 }
