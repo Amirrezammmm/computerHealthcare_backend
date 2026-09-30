@@ -12,17 +12,24 @@ class Computer extends Model
 
     protected $fillable = [
         'property_code',
+        'item_title',          // عنوان کالا
+        'user_name',           // نام کاربر متصدی
         'primary_seal_code',   // پلمپ اول
         'secondary_seal_code', // پلمپ دوم
         'label_code',
-        'last_service_date',
-        'next_service_date',
+        'last_service_date',   // تاریخ شمسی به صورت رشته
+        'next_service_date',   // تاریخ شمسی به صورت رشته
         'health_status',
         'description',
+        'project_id',          // جهت اتصال به سیستم چند پروژه‌ای القارعه
     ];
 
-    protected $casts = [
-        'last_service_date' => 'date',
-        'next_service_date' => 'date',
-    ];
+    // کست تاریخ میلادی رو حذف کردیم چون تاریخ‌ها به صورت شمسی و رشته‌ای ذخیره میشن
+    protected $casts = [];
+
+    // رابطه با پروژه
+    public function project()
+    {
+        return $this->belongsTo(Project::class);
+    }
 }

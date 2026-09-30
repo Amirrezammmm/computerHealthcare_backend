@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\RoleMiddleware;
+use App\Http\Middleware\UpdateLastSeen;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,7 +15,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        // ۱. فعال‌سازی پشتیبانی از سشن و کوکی برای درخواست‌های API (واجب برای Sanctum و فرانت Next.js)
+        $middleware->statefulApi();
+
+        // ۲. رجیستر کردن نام مستعار (Alias) میدلورها با کلید role و last_seen
+        $middleware->alias([
+            'role'      => RoleMiddleware::class,
+            'last_seen' => UpdateLastSeen::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

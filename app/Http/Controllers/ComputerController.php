@@ -79,6 +79,8 @@ class ComputerController extends Controller
             'next_service_date'   => ['nullable', 'string', 'max:20'],
             'health_status'       => ['required', 'in:healthy,warning,critical'],
             'description'         => ['nullable', 'string'],
+            'project_id'          => ['nullable', 'exists:projects,id'],
         ]);
     }
+
 }
