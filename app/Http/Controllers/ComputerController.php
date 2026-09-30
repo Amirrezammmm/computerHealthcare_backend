@@ -4,136 +4,81 @@ namespace App\Http\Controllers;
 
 use App\Models\Computer;
 use Illuminate\Http\Request;
-use Illuminate\Http\JsonResponse;
-use App\Imports\ComputersImport;
-use Maatwebsite\Excel\Facades\Excel;
-
 
 class ComputerController extends Controller
 {
-    /**
-     * رادار پایش و لیست سیستم‌ها با قابلیت فیلتر چندمنظوره
-     */
-    public function index(Request $request): JsonResponse
+    public function index(Request $request)
     {
         $query = Computer::query();
 
-        // سیستم جستجوی پیشرفته بر اساس کد اموال، برچسب القارعه یا شماره‌های پلمپ
-        if ($search = $request->query('search')) {
+        if ($search = trim($request->input('search', ''))) {
             $query->where(function ($q) use ($search) {
                 $q->where('property_code', 'like', "%{$search}%")
-                  ->orWhere('label_code', 'like', "%{$search}%")
-                  ->orWhere('primary_seal_code', 'like', "%{$search}%")
-                  ->orWhere('secondary_seal_code', 'like', "%{$search}%");
+                    ->orWhere('item_title', 'like', "%{$search}%")
+                    ->orWhere('user_name', 'like', "%{$search}%")
+                    ->orWhere('label_code', 'like', "%{$search}%")
+                    ->orWhere('primary_seal_code', 'like', "%{$search}%")
+                    ->orWhere('secondary_seal_code', 'like', "%{$search}%");
             });
         }
 
-        // فیلتر بر اساس وضعیت سلامت
-        if ($status = $request->query('status')) {
-            $query->where('health_status', $status);
-        }
-
-        // صفحه‌بندی ۱۲تایی تمیز
-        $computers = $query->latest()->paginate(12);
-
-        return response()->json($computers);
+        return response()->json($query->latest('id')->get());
     }
 
-    /**
-     * ثبت کیس جدید در سامانه
-     */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request)
     {
-        $validated = $request->validate([
-            'property_code'       => 'required|string|unique:computers,property_code',
-            'primary_seal_code'   => 'nullable|string',
-            'secondary_seal_code' => 'nullable|string',
-            'label_code'          => 'nullable|string',
-            'last_service_date'   => 'nullable|date',
-            'next_service_date'   => 'nullable|date',
-            'health_status'       => 'required|in:healthy,warning,critical',
-            'description'         => 'nullable|string',
-        ]);
-
-        $computer = Computer::create($validated);
+        $computer = Computer::create($this->validateData($request));
 
         return response()->json([
-            'message' => 'سیستم با موفقیت به پایگاه سلامت افزوده شد!',
-            'data'    => $computer
+            'status'  => 'success',
+            'message' => 'سیستم جدید در سامانه القارعه ثبت شد 🚀',
+            'data'    => $computer,
         ], 201);
     }
 
-    /**
-     * مشاهده تکی مشخصات یک کیس
-     */
-    public function show(Computer $computer): JsonResponse
+    public function show(Computer $computer)
     {
         return response()->json($computer);
     }
 
-    /**
-     * ویرایش اطلاعات کیس
-     */
-    public function update(Request $request, Computer $computer): JsonResponse
+    public function update(Request $request, Computer $computer)
     {
-        $validated = $request->validate([
-            'property_code'       => 'required|string|unique:computers,property_code,' . $computer->id,
-            'primary_seal_code'   => 'nullable|string',
-            'secondary_seal_code' => 'nullable|string',
-            'label_code'          => 'nullable|string',
-            'last_service_date'   => 'nullable|date',
-            'next_service_date'   => 'nullable|date',
-            'health_status'       => 'required|in:healthy,warning,critical',
-            'description'         => 'nullable|string',
-        ]);
-
-        $computer->update($validated);
+        $computer->update($this->validateData($request, $computer->id));
 
         return response()->json([
-            'message' => 'مشخصات کیس با موفقیت به‌روزرسانی شد.',
-            'data'    => $computer
+            'status'  => 'success',
+            'message' => 'اطلاعات با موفقیت به‌روزرسانی شد ✅',
+            'data'    => $computer->fresh(),
         ]);
     }
 
-    /**
-     * حذف نرم (Soft Delete) برای عدم پاک شدن سوابق
-     */
-    public function destroy(Computer $computer): JsonResponse
+    public function destroy(Computer $computer)
     {
         $computer->delete();
 
         return response()->json([
-            'message' => 'کیس مورد نظر بایگانی شد (Soft Delete).'
+            'status'  => 'success',
+            'message' => 'هدف از رده خارج و از سامانه حذف شد 💀',
         ]);
     }
-    public function import(Request $request)
+
+    private function validateData(Request $request, ?int $id = null): array
     {
-        $request->validate([
-            'file' => 'required|file|mimes:xlsx,xls,csv|max:10240', // حداکثر ۱۰ مگابایت
+        $unique = $id
+            ? "unique:computers,property_code,{$id}"
+            : 'unique:computers,property_code';
+
+        return $request->validate([
+            'property_code'       => ['required', 'string', 'max:100', $unique],
+            'item_title'          => ['nullable', 'string', 'max:255'],
+            'user_name'           => ['nullable', 'string', 'max:255'],
+            'label_code'          => ['nullable', 'string', 'max:100'],
+            'primary_seal_code'   => ['nullable', 'string', 'max:100'],
+            'secondary_seal_code' => ['nullable', 'string', 'max:100'],
+            'last_service_date'   => ['nullable', 'string', 'max:20'],
+            'next_service_date'   => ['nullable', 'string', 'max:20'],
+            'health_status'       => ['required', 'in:healthy,warning,critical'],
+            'description'         => ['nullable', 'string'],
         ]);
-
-        try {
-            Excel::import(new ComputersImport, $request->file('file'));
-
-            return response()->json([
-                'status' => 'success',
-                'message' => 'عملیات با موفقیت انجام شد؛ سیستم‌ها در سامانه القارعه ثبت شدند! 🚀'
-            ], 200);
-
-        } catch (\Maatwebsite\Excel\Validators\ValidationException $e) {
-            $failures = $e->failures();
-            return response()->json([
-                'status' => 'error',
-                'message' => 'ردیف‌هایی از اکسل ایراد ساختاری دارند.',
-                'errors' => $failures
-            ], 422);
-
-        } catch (\Throwable $th) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'شکست در واردات دیتا: ' . $th->getMessage()
-            ], 500);
-        }
     }
-
 }
